@@ -11,7 +11,6 @@ public:
     bool connect_to_server();     
     void disconnect();            
 
-    // I/O futuro (CLI): enviar e receber
     bool send_line(const std::string& line);
 
 private:
@@ -22,3 +21,4 @@ private:
     std::thread recv_th_;
     std::atomic<bool> running_{false};
 };
+

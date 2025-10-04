@@ -1,4 +1,3 @@
-// src/tslog.cpp
 #include "tslog.hpp"
 #include "blocking_queue.hpp"
 
@@ -62,11 +61,10 @@ static void worker_thread_func() {
         }
     }
 
-    // Loop principal: consome enquanto g_running estiver true
     while (g_running.load()) {
         LogRecord rec;
         bool ok = g_queue->pop(rec);
-        if (!ok) break; // shutdown sinalizado e fila vazia
+        if (!ok) break; 
 
         std::ostringstream line;
         line << timestamp_str(rec.ts) << " [" << lvl_name(rec.lvl) << "]"
@@ -83,10 +81,9 @@ static void worker_thread_func() {
         }
     }
 
-    // Drena o que restou na fila após shutdown
     while (true) {
         LogRecord rec;
-        if (!g_queue->pop(rec)) break; // fila vazia após shutdown
+        if (!g_queue->pop(rec)) break; 
         std::ostringstream line;
         line << timestamp_str(rec.ts) << " [" << lvl_name(rec.lvl) << "]"
              << " (tid=" << rec.tid << ") " << rec.text << "\n";
@@ -126,4 +123,4 @@ void log(Level lvl, const char *msg) {
     g_queue->push(std::move(rec));
 }
 
-} // namespace tslog
+} 

@@ -1,25 +1,17 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <thread>
 #include <atomic>
 #include <mutex>
-
-struct ClientConn {
-    int fd = -1;
-    std::thread th;
-};
 
 class ChatServer {
 public:
     explicit ChatServer(int port);
     ~ChatServer();
 
-    // ciclo de vida
     bool start();     
     void stop();      
 
-    // estatísticas (para CLI futuramente)
     int  port() const { return port_; }
     size_t client_count() const;
 
@@ -32,7 +24,6 @@ private:
     int port_;
     std::atomic<bool> running_{false};
 
-    // lista de clientes protegida por mutex
     mutable std::mutex mtx_;
-    std::vector<ClientConn> clients_;
+    std::vector<int> clients_;
 };

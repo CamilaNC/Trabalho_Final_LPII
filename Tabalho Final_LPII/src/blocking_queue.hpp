@@ -9,7 +9,6 @@ class BlockingQueue {
 public:
     BlockingQueue() = default;
     ~BlockingQueue() = default;
-
     void push(T item) {
         {
             std::lock_guard<std::mutex> lk(m_);
@@ -18,7 +17,6 @@ public:
         cv_.notify_one();
     }
 
-    // pop will block until an item is available or shutdown is true
     bool pop(T &out) {
         std::unique_lock<std::mutex> lk(m_);
         cv_.wait(lk, [&]() { return !q_.empty() || shutdown_; });
