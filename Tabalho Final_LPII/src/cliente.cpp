@@ -1,6 +1,5 @@
 #include "cliente.hpp"
 #include "tslog.hpp"
-
 #include <unistd.h>
 #include <cstring>
 #include <cerrno>
@@ -25,7 +24,7 @@ bool ChatClient::connect_to_server() {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(static_cast<uint16_t>(port_));
     if (::inet_pton(AF_INET, host_.c_str(), &addr.sin_addr) <= 0) {
-        tslog::error("client: inet_pton failed (use IP v4, ex.: 127.0.0.1)");
+        tslog::error("client: inet_pton failed (use IPv4 ex: 127.0.0.1)");
         ::close(sock_fd_);
         sock_fd_ = -1;
         return false;

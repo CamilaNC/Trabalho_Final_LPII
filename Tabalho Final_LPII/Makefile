@@ -38,8 +38,6 @@ test-e2e: all
 	@bash teste/teste_e2e.sh
 .PHONY: test-e2e
 
-
-
 clean:
 	rm -rf *.o src/*.o $(BIN_DIR) logs
 

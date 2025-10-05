@@ -1,94 +1,78 @@
-# Etapa 1 — libtslog (Trabalho Final de Programação Concorrente)
+# Projeto Final - Programação Concorrente (C/C++)
 
-Este repositório contém a implementação da **Etapa 1** e **Etapa 2** do tema A (Chat TCP multiusuário):  
-uma biblioteca de logging concorrente (`libtslog`) e um programa de teste de stress (`tslog_stress`).
+Este projeto implementa as três etapas do trabalho final da disciplina **LPII - Programação Concorrente**.  
+O sistema demonstra uso de **concorrência**, **comunicação entre processos** e **sincronização** através de:
+
+- **Etapa 1:** Logger concorrente (`tslog`) com fila bloqueante.
+- **Etapa 2:** Servidor e cliente TCP simples.
+- **Etapa 3:** Extensão do chat com comandos `/nick` e `/quit`.
 
 ---
 
-## Como compilar e executar (Etapa 1)
+## Organização do Projeto
 
-No terminal, dentro do diretório do projeto:
+.
+├── src/                             # Código-fonte principal
+│ ├── tslog.cpp/.hpp                 # Logger concorrente (Etapa 1)
+│ ├── blocking_queue.hpp
+│ ├── server.cpp/.hpp
+│ ├── server_main.cpp
+│ ├── cliente.cpp/.hpp
+│ └── cliente_main.cpp
+├── exemplos/
+│ └── tslog_stress.cpp               # Programa de teste do logger (Etapa 1)
+├── logs/                            # Logs gerados em tempo de execução
+├── bin/                             # Binários compilados
+├── teste/
+│ └── teste_e2e.sh                   # Script de teste end-to-end
+├── Makefile                         # Automação de compilação/execução
+└── README.md
 
-make clean
-make run-stress
+---
 
-Isso vai:
+## Compilação
+Para compilar todas as etapas de uma vez:
+  make all
 
-    Compilar a biblioteca (src/tslog.cpp)
+Para limpar binários e logs:
+  make clean
 
-    Compilar o exemplo (exemplos/tslog_stress.cpp)
+##  Execução por Etapa
 
-    Executar o programa de stress (bin/tslog_stress)
+--> Etapa 1 - Logger concorrente
+Compilar e executar o programa de stress test:
+  make run-stress
 
-    Gerar logs em logs/app.log e espelhar no terminal
+-Saída no terminal mostrando várias threads escrevendo no logger.
+-Arquivo de log gerado em logs/app.log.
 
-    Obs.: as pastas bin/ e logs/ são criadas apenas após a execuçã
+--> Etapa 2 - Cliente/Servidor TCP básico
+Compilar servidor e cliente:
+  make server
+  make cliente
 
-## Validação
+Executar servidor (porta 9000 por padrão):
+  make run-server
 
-O teste cria 8 threads, cada uma escrevendo 5000 mensagens → total esperado = 40000 linhas.
+Em outro terminal, executar cliente:
+  make run-cliente
 
-Verifique:
+-O cliente conecta ao servidor e permite enviar mensagens simples.
 
-# 1. Total de linhas do log
-wc -l logs/app.log
-# deve retornar 40000
+--> Etapa 3 - Chat com comandos /nick e /quit
+O mesmo binário da Etapa 2 já suporta os comandos:
+- /nick <nome> → define ou altera o apelido.
+- /quit → desconecta o cliente do servidor.
 
-# 2. Todas as threads produtoras
-grep -o 'thread=[0-9]\+' logs/app.log | sort -u
-# deve listar thread=0 até thread=7
-
-# 3. Diversidade de thread IDs capturados
-grep -o 'tid=[0-9]\+' logs/app.log | sort -u | wc -l
-# deve retornar 8 (uma por thread)
-
-## Arquitetura do logger
-
-    Produtores: múltiplas threads chamando tslog::debug/info/warn/error.
-
-    Monitor (BlockingQueue): fila thread-safe que armazena os registros.
-
-    Consumidor (Worker thread): única thread que escreve no arquivo e no stdout.
+Execução idêntica à Etapa 2:
+  make run-server
+  make run-cliente
 
 
-(Esquema simplificado: Threads produtoras → BlockingQueue → Worker thread → arquivo/stdout)
+## Testes Automáticos
+Rodar os testes end-to-end (executa servidor e clientes simulados):
+  make test-e2e
+  ou
+  ./exemplos/run_clients.sh 5
 
-## Etapa 2 — Protótipo CLI de Comunicação
-
-A Etapa 2 implementa um protótipo cliente/servidor TCP mínimo com logging integrado:
-
-# Servidor (server_cli)
-    Aceita múltiplos clientes, cria uma thread por conexão (detach) e retransmite mensagens recebidas (broadcast).
-    Registra eventos com libtslog (conexão, desconexão, mensagens).
-
-# Cliente (cliente_cli)
-    Conecta ao servidor, envia mensagens digitadas no terminal e exibe mensagens recebidas.
-    Suporta comando /quit para encerrar.
-
-# Scripts de teste
-
-    exemplos/run_clients.sh → dispara múltiplos clientes bots que enviam mensagens automáticas.
-
-    teste/teste_e2e.sh → teste end-to-end: sobe servidor, dispara bots, valida logs e garante que o broadcast funciona.
-
-## Como compilar e executar (Etapa 2)
-
-1. Compilar tudo: 
-make all
-2. Iniciar o servidor: 
-make run-server
-3. Conectar um cliente interativo: 
-make run-cliente
-    Obs.: Digite mensagens e pressione ENTER.Use /quit para encerrar.
-4. Rodar clientes automáticos (bots): 
-./exemplos/run_clients.sh 5
-5. Executar testes end-to-end:
-make test-e2e
-
-## Próximos passos (Etapa 3)
-
-Implementar suporte a apelidos (/nick) e prefixar mensagens no broadcast.
-
-Suporte a /quit tratado pelo servidor (remover cliente limpo).
-
-Melhorias de UX e robustez no cliente/servidor.
+- Logs ficam registrados em logs/.

@@ -123,4 +123,4 @@ void log(Level lvl, const char *msg) {
     g_queue->push(std::move(rec));
 }
 
-} 
+} // namespace tslog

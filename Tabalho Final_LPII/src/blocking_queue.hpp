@@ -9,6 +9,7 @@ class BlockingQueue {
 public:
     BlockingQueue() = default;
     ~BlockingQueue() = default;
+
     void push(T item) {
         {
             std::lock_guard<std::mutex> lk(m_);

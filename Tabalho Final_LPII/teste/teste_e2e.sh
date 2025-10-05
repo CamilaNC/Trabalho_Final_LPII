@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 HOST=${HOST:-127.0.0.1}
@@ -57,6 +58,21 @@ assert_count_ge() {
   ok "$file: '$pat' >= $min (achou $c)"
 }
 
+wait_for_count_in_log() {
+  local pat="$1" file="$2" min="$3" timeout="${4:-10}"
+  local i=0
+  while (( i < timeout*10 )); do
+    local c
+    c=$(grep -c -- "$pat" "$file" 2>/dev/null || echo 0)
+    if (( c >= min )); then
+      return 0
+    fi
+    sleep 0.1
+    ((i++))
+  done
+  return 1
+}
+
 broadcast_check() {
   msg "teste de broadcast…"
   local fifoA=/tmp/in_cli_A.$$ outA=/tmp/out_cli_A.$$
@@ -85,7 +101,6 @@ trap 'stop_server' EXIT
 require ss || require netstat
 [[ -x $BIN_SERVER && -x $BIN_CLIENT ]] || die "compile antes: make all"
 
-
 rm -f "$LOG_SERVER" "$LOG_CLIENT"
 
 start_server
@@ -95,11 +110,25 @@ msg "rodando $N clientes automáticos…"
 chmod +x "$RUN_BOTS"
 HOST="$HOST" PORT="$PORT" BIN="$BIN_CLIENT" "$RUN_BOTS" "$N"
 
+if ! wait_for_count_in_log "client connected from" "$LOG_SERVER" "$N" 10; then
+  echo "---- conteudo atual de $LOG_SERVER (últimas 200 linhas) ----"
+  tail -n 200 "$LOG_SERVER" || true
+  echo "---- conteudo atual de $LOG_CLIENT (últimas 200 linhas) ----"
+  tail -n 200 "$LOG_CLIENT" || true
+  die "timeout aguardando $N conexões no servidor (checando logs)"
+fi
+ok "logs do servidor registraram >= $N conexões"
+
 assert_grep "server: listening on port $PORT" "$LOG_SERVER"
 assert_count_ge "client connected from" "$LOG_SERVER" "$N"
 
+if ! wait_for_count_in_log "server: recv line" "$LOG_SERVER" "$((3 * N))" 10; then
+  echo "---- conteudo atual de $LOG_SERVER (últimas 200 linhas) ----"
+  tail -n 200 "$LOG_SERVER" || true
+  die "timeout aguardando $(($3 * N)) recv lines no servidor"
+fi
 assert_count_ge "server: recv line" "$LOG_SERVER" "$(( 3 * N ))"
 
 broadcast_check
 
-ok "todos os testes passaram "
+ok "todos os testes passaram"

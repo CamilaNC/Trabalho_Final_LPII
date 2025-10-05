@@ -10,7 +10,7 @@ BIN=${BIN:-./bin/cliente_cli}
 for i in $(seq 1 "$N"); do
   (
     NICK="bot_$i"
-    MSG="Olá de $NICK at $(date +%H:%M:%S)"
+    MSG="Olá de $NICK às $(date +%H:%M:%S)"
     sleep 0.$((RANDOM % 9))
     {
       echo "nick $NICK"

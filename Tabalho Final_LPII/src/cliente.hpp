@@ -10,7 +10,6 @@ public:
 
     bool connect_to_server();     
     void disconnect();            
-
     bool send_line(const std::string& line);
 
 private:
@@ -21,4 +20,3 @@ private:
     std::thread recv_th_;
     std::atomic<bool> running_{false};
 };
-

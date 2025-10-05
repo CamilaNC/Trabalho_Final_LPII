@@ -9,14 +9,13 @@ int main(int argc, char **argv) {
         port = std::atoi(argv[1]);
     }
 
-    // Inicializa o logger
     tslog::Config cfg;
     cfg.file = "logs/server.log";
     cfg.mirror_stdout = true;   
     cfg.level = tslog::INFO;
     tslog::init(cfg);
 
-    std::cout << "=== Servidor de Chat (Etapa 2) ===" << std::endl;
+    std::cout << "=== Servidor de Chat (Etapa 3) ===\n";
     std::cout << "Porta: " << port << std::endl;
 
     ChatServer server(port);

@@ -1,6 +1,5 @@
 #include "server.hpp"
 #include "tslog.hpp"
-
 #include <unistd.h>
 #include <cstring>
 #include <cerrno>
@@ -9,8 +8,9 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <thread>      
-
+#include <thread>
+#include <algorithm>
+#include <iostream>
 
 namespace {
 
@@ -44,7 +44,7 @@ bool send_all(int fd, const char *buf, size_t len) {
     return true;
 }
 
-} 
+} // namespace
 
 ChatServer::ChatServer(int port) : port_(port) {}
 ChatServer::~ChatServer() { stop(); }
@@ -99,11 +99,11 @@ void ChatServer::stop() {
     }
 
     std::lock_guard<std::mutex> lk(mtx_);
-    for (int &fd : clients_) {
-        if (fd != -1) {
-            ::shutdown(fd, SHUT_RDWR);
-            ::close(fd);
-            fd = -1;
+    for (auto &c : clients_) {
+        if (c.fd != -1) {
+            ::shutdown(c.fd, SHUT_RDWR);
+            ::close(c.fd);
+            c.fd = -1;
         }
     }
     clients_.clear();
@@ -134,15 +134,23 @@ void ChatServer::accept_loop() {
 
         {
             std::lock_guard<std::mutex> lk(mtx_);
-            clients_.push_back(cfd);
+            clients_.push_back({cfd, ""});
         }
         std::thread(&ChatServer::client_worker, this, cfd).detach();
     }
     tslog::info("server: accept_loop ended");
 }
 
+std::string ChatServer::nick_of(int fd) const {
+    std::lock_guard<std::mutex> lk(mtx_);
+    for (const auto &c : clients_) {
+        if (c.fd == fd) return c.nick;
+    }
+    return "";
+}
+
 void ChatServer::client_worker(int client_fd) {
-    const std::string hello = "Bem-vindo ao chat!\n";
+    const std::string hello = "Bem-vindo ao chat! Use /nick <nome> para definir apelido.\n";
     (void)send_all(client_fd, hello.c_str(), hello.size());
 
     std::string line;
@@ -150,36 +158,100 @@ void ChatServer::client_worker(int client_fd) {
         if (!recv_line(client_fd, line)) break;
 
         if (line.size() > 1024) line.resize(1024);
-        std::string msg = line + "\n";
 
         {
-    std::ostringstream ss;
-    ss << "server: recv line: \"" << line << "\" (" << line.size() << " bytes)";
-    tslog::info(ss.str().c_str());
-}
+            std::ostringstream ss;
+            ss << "server: recv line: \"" << line << "\" (" << line.size() << " bytes)";
+            tslog::info(ss.str().c_str());
+        }
+
+        // comandos: /nick <nome> ou nick <nome>
+        if (line.rfind("/nick ", 0) == 0 || line.rfind("nick ", 0) == 0) {
+            std::string name = line.substr(line.find(' ') + 1);
+            if (name.size() > 32) name.resize(32);
+
+            std::string notification_msg;
+
+            // Inicia um novo escopo para o lock
+            {
+                std::lock_guard<std::mutex> lk(mtx_);
+                for (auto &c : clients_) {
+                    if (c.fd == client_fd) {
+                        std::string prev_nick = c.nick;
+                        c.nick = name;
+                        
+                        // Envie a confirmação para o próprio cliente aqui dentro
+                        std::ostringstream ss;
+                        ss << "Seu nick agora é: " << c.nick << "\n";
+                        send_all(client_fd, ss.str().c_str(), ss.str().size());
+
+                        // Apenas prepare a mensagem de notificação
+                        if (prev_nick.empty()) {
+                            std::ostringstream nb; nb << "* " << c.nick << " entrou no chat\n";
+                            notification_msg = nb.str();
+                        } else {
+                            std::ostringstream nb; nb << "* " << prev_nick << " agora é " << c.nick << "\n";
+                            notification_msg = nb.str();
+                        }
+                        break;
+                    }
+                }
+            } // O lock_guard é destruído e o mutex mtx_ é LIBERADO aqui
+
+            // Agora, com o mutex liberado, faça o broadcast
+            if (!notification_msg.empty()) {
+                broadcast_line(notification_msg, client_fd);
+            }
+            
+            continue;
+        }
+
+        // /quit recebido pelo servidor -> tratar como desconexão limpa
+        if (line == "/quit") {
+            tslog::info("server: received /quit from client -> disconnecting");
+            break;
+        }
+
+        // montar msg para broadcast prefixada com nick
+        std::string sender = nick_of(client_fd);
+        if (sender.empty()) sender = "anon";
+        std::string msg = sender + ": " + line + "\n";
 
         broadcast_line(msg, client_fd);
     }
 
+    // remover cliente
+    std::string left_nick;
     {
         std::lock_guard<std::mutex> lk(mtx_);
         for (auto it = clients_.begin(); it != clients_.end(); ++it) {
-            if (*it == client_fd) {
+            if (it->fd == client_fd) {
+                left_nick = it->nick;
                 ::close(client_fd);
                 clients_.erase(it);
                 break;
             }
         }
     }
+    if (!left_nick.empty()) {
+        std::ostringstream nb; nb << "* " << left_nick << " saiu do chat\n";
+        broadcast_line(nb.str(), -1);
+    }
+
     tslog::info("server: client disconnected");
 }
 
 void ChatServer::broadcast_line(const std::string& line, int from_fd) {
     std::lock_guard<std::mutex> lk(mtx_);
-    for (int fd : clients_) {
-        if (fd == from_fd) continue;
+    for (auto it = clients_.begin(); it != clients_.end(); ) {
+        int fd = it->fd;
+        if (fd == from_fd) { ++it; continue; }
         if (!send_all(fd, line.c_str(), line.size())) {
-            tslog::warn("server: broadcast send failed");
+            tslog::warn("server: broadcast send failed -> removing client");
+            ::close(fd);
+            it = clients_.erase(it);
+        } else {
+            ++it;
         }
     }
 }
